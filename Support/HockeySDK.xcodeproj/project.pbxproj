@@ -875,6 +875,7 @@
 					"$(inherited)",
 					"\"$(SRCROOT)/../Vendor/CrashReporter\"",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				WRAPPER_EXTENSION = framework;
@@ -898,6 +899,7 @@
 					"$(inherited)",
 					"\"$(SRCROOT)/../Vendor/CrashReporter\"",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				WRAPPER_EXTENSION = framework;
