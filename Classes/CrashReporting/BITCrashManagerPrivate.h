@@ -1,7 +1,7 @@
 /*
  * Author: Andreas Linde <mail@andreaslinde.de>
  *
- * Copyright (c) 2012-2013 HockeyApp, Bit Stadium GmbH.
+ * Copyright (c) 2012-2014 HockeyApp, Bit Stadium GmbH.
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -40,33 +40,46 @@
 #define kHockeySDKUserEmail @"HockeySDKUserEmail"
 
 
+@class BITHockeyAppClient;
+@class BITHockeyAttachment;
+
+
 @interface BITCrashManager ()
 
-@property (nonatomic, retain) NSString *appIdentifier;
+///-----------------------------------------------------------------------------
+/// @name Delegate
+///-----------------------------------------------------------------------------
 
-@property (nonatomic, retain) NSString *userName;
-@property (nonatomic, retain) NSString *userEmail;
+// delegate is required
+@property (nonatomic, unsafe_unretained) id <BITCrashManagerDelegate> delegate;
+
+@property (nonatomic, strong) BITHockeyAppClient *hockeyAppClient;
 
 @property (nonatomic, getter = isCrashManagerActivated) BOOL crashManagerActivated;
 
 @property (nonatomic) NSUncaughtExceptionHandler *plcrExceptionHandler;
 
-- (id)initWithAppIdentifier:(NSString *)appIdentifier;
+@property (nonatomic) PLCrashReporterCallbacks *crashCallBacks;
+
+@property (nonatomic) NSString *lastCrashFilename;
+
+@property (nonatomic, copy, setter = setCrashReportUIHandler:) BITCustomCrashReportUIHandler crashReportUIHandler;
+
+@property (nonatomic, strong) NSString *crashesDir;
 
 - (NSString *)applicationName;
 - (NSString *)applicationVersion;
-
-- (void)returnToMainApplication;
-
-- (void)cancelReport;
-- (void)sendReportWithCrash:(NSString*)crashFile crashDescription:(NSString *)crashDescription;
 
 - (void)handleCrashReport;
 - (BOOL)hasPendingCrashReport;
 - (void)cleanCrashReports;
 - (NSString *)extractAppUUIDs:(BITPLCrashReport *)report;
 
-- (void)postXML:(NSString*)xml;
+- (void)persistAttachment:(BITHockeyAttachment *)attachment withFilename:(NSString *)filename;
+
+- (BITHockeyAttachment *)attachmentForCrashReport:(NSString *)filename;
+
+- (void)setLastCrashFilename:(NSString *)lastCrashFilename;
 
 /**
  *  Initialize the crash reporter and check if there are any pending crash reports
