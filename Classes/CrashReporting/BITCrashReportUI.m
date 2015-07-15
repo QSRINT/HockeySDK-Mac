@@ -2,7 +2,7 @@
  * Author: Andreas Linde <mail@andreaslinde.de>
  *         Kent Sutherland
  *
- * Copyright (c) 2012-2013 HockeyApp, Bit Stadium GmbH.
+ * Copyright (c) 2012-2014 HockeyApp, Bit Stadium GmbH.
  * Copyright (c) 2011 Andreas Linde & Kent Sutherland.
  * All rights reserved.
  *
@@ -33,10 +33,11 @@
 #import <HockeySDK/HockeySDK.h>
 #import "HockeySDKPrivate.h"
 
+#import "BITHockeyBaseManagerPrivate.h"
 #import "BITCrashManagerPrivate.h"
+#import "BITCrashMetaData.h"
 
 #import <sys/sysctl.h>
-#import "CrashReporter.h"
 
 
 @interface BITCrashReportUI(private)
@@ -48,30 +49,56 @@ const CGFloat kUserHeight = 50;
 const CGFloat kCommentsHeight = 105;
 const CGFloat kDetailsHeight = 285;
 
-@implementation BITCrashReportUI
+@implementation BITCrashReportUI {
+  IBOutlet NSTextField *nameTextField;
+  IBOutlet NSTextField *emailTextField;
+  IBOutlet NSTextField *descriptionTextField;
+  IBOutlet NSTextView  *crashLogTextView;
+  
+  IBOutlet NSTextField *nameTextFieldTitle;
+  IBOutlet NSTextField *emailTextFieldTitle;
+  
+  IBOutlet NSTextField *introductionText;
+  IBOutlet NSTextField *commentsTextFieldTitle;
+  IBOutlet NSTextField *problemDescriptionTextFieldTitle;
+  
+  IBOutlet NSTextField *noteText;
+  
+  IBOutlet NSButton *disclosureButton;
+  IBOutlet NSButton *showButton;
+  IBOutlet NSButton *hideButton;
+  IBOutlet NSButton *cancelButton;
+  IBOutlet NSButton *submitButton;
 
-@synthesize userName = _userName;
-@synthesize userEmail = _userEmail;
+  BITCrashManager *_crashManager;
+  
+  NSString *_applicationName;
+  
+  NSMutableString *_logContent;
+  NSString        *_crashLogContent;
+  
+  BOOL _showUserDetails;
+  BOOL _showComments;
+  BOOL _showDetails;
+}
 
 
-- (instancetype)initWithManager:(BITCrashManager *)crashManager crashReportFile:(NSString *)crashReportFile crashReport:(NSString *)crashReport logContent:(NSString *)logContent companyName:(NSString *)companyName applicationName:(NSString *)applicationName askUserDetails:(BOOL)askUserDetails {
+- (instancetype)initWithManager:(BITCrashManager *)crashManager crashReport:(NSString *)crashReport logContent:(NSString *)logContent applicationName:(NSString *)applicationName askUserDetails:(BOOL)askUserDetails {
   
   self = [super initWithWindowNibName: @"BITCrashReportUI"];
   
   if ( self != nil) {
-    _mainAppMenu = [NSApp mainMenu];
     _crashManager = crashManager;
-    _crashFile = [crashReportFile copy];
     _crashLogContent = [crashReport copy];
     _logContent = [logContent copy];
-    _companyName = [companyName copy];
     _applicationName = [applicationName copy];
-    self.userName = @"";
-    self.userEmail = @"";
-    [self setShowComments: YES];
-    [self setShowDetails: NO];
-    [self setShowUserDetails:askUserDetails];
-    
+    _userName = @"";
+    _userEmail = @"";
+    _showComments = YES;
+    _showDetails = NO;
+    _showUserDetails = askUserDetails;
+    _nibDidLoadSuccessfully = NO;
+
     NSRect windowFrame = [[self window] frame];
     windowFrame.size = NSMakeSize(windowFrame.size.width, windowFrame.size.height - kDetailsHeight);
     windowFrame.origin.y -= kDetailsHeight;
@@ -96,13 +123,15 @@ const CGFloat kDetailsHeight = 285;
     [[self window] setFrame: windowFrame
                     display: YES
                     animate: NO];
+    [[self window] center];
     
   }
-  return self;  
+  return self;
 }
 
 
 - (void)awakeFromNib {
+  _nibDidLoadSuccessfully = YES;
   [crashLogTextView setEditable:NO];
   if ([crashLogTextView respondsToSelector:@selector(setAutomaticSpellingCorrectionEnabled:)]) {
     [crashLogTextView setAutomaticSpellingCorrectionEnabled:NO];
@@ -112,8 +141,6 @@ const CGFloat kDetailsHeight = 285;
 
 - (void)endCrashReporter {
   [self close];
-  [NSApp stopModal];
-  [NSApp setMainMenu:_mainAppMenu];
 }
 
 
@@ -170,9 +197,9 @@ const CGFloat kDetailsHeight = 285;
 
 
 - (IBAction)cancelReport:(id)sender {
-  [self endCrashReporter];
+  [_crashManager handleUserInput:BITCrashManagerUserInputDontSend withUserProvidedMetaData:nil];
   
-  [_crashManager cancelReport];
+  [self endCrashReporter];
 }
 
 - (IBAction)submitReport:(id)sender {
@@ -183,14 +210,14 @@ const CGFloat kDetailsHeight = 285;
   
   [[self window] makeFirstResponder: nil];
   
-  if (showUserDetails) {
-    _crashManager.userName = [nameTextField stringValue];
-    _crashManager.userEmail = [emailTextField stringValue];
+  BITCrashMetaData *crashMetaData = [[BITCrashMetaData alloc] init];
+  if (_showUserDetails) {
+    crashMetaData.userName = [nameTextField stringValue];
+    crashMetaData.userEmail = [emailTextField stringValue];
   }
+  crashMetaData.userDescription = [descriptionTextField stringValue];
   
-  [_crashManager sendReportWithCrash:_crashFile crashDescription:[descriptionTextField stringValue]];
-  [_crashLogContent release];
-  _crashLogContent = nil;
+  [_crashManager handleUserInput:BITCrashManagerUserInputSend withUserProvidedMetaData:crashMetaData];
   
   [self endCrashReporter];
 }
@@ -199,8 +226,8 @@ const CGFloat kDetailsHeight = 285;
 - (void)askCrashReportDetails {
 #define DISTANCE_BETWEEN_BUTTONS		3
   
-  
-  [[self window] setTitle:[NSString stringWithFormat:BITHockeyLocalizedString(@"WindowTitle", @""), _applicationName]];
+  NSString *title = BITHockeyLocalizedString(@"WindowTitle", @"");
+  [[self window] setTitle:[NSString stringWithFormat:title, _applicationName]];
   
   [[nameTextFieldTitle cell] setTitle:BITHockeyLocalizedString(@"NameTextTitle", @"")];
   [[nameTextField cell] setTitle:self.userName];
@@ -214,7 +241,8 @@ const CGFloat kDetailsHeight = 285;
     [[emailTextField cell] setUsesSingleLineMode:YES];
   }
 
-  [[introductionText cell] setTitle:[NSString stringWithFormat:BITHockeyLocalizedString(@"IntroductionText", @""), _applicationName, _companyName]];
+  title = BITHockeyLocalizedString(@"IntroductionText", @"");
+  [[introductionText cell] setTitle:[NSString stringWithFormat:title, _applicationName]];
   [[commentsTextFieldTitle cell] setTitle:BITHockeyLocalizedString(@"CommentsDisclosureTitle", @"")];
   [[problemDescriptionTextFieldTitle cell] setTitle:BITHockeyLocalizedString(@"ProblemDetailsTitle", @"")];
 
@@ -227,7 +255,7 @@ const CGFloat kDetailsHeight = 285;
   [submitButton setTitle:BITHockeyLocalizedString(@"SendButtonTitle", @"")];
   
   // adjust button sizes
-  NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys: [submitButton font], NSFontAttributeName, nil];
+  NSDictionary *attrs = @{NSFontAttributeName: [submitButton font]};
   NSSize titleSize = [[submitButton title] sizeWithAttributes: attrs];
 	titleSize.width += (16 + 8) * 2;	// 16 px for the end caps plus 8 px padding at each end
 	NSRect submitBtnBox = [submitButton frame];
@@ -254,59 +282,48 @@ const CGFloat kDetailsHeight = 285;
 	hideBtnBox.size.width = titleSize.width;
 	[hideButton setFrame: showBtnBox];
     
-  NSString *logTextViewContent = [[_crashLogContent copy] autorelease];
+  NSString *logTextViewContent = [_crashLogContent copy];
   
   if (_logContent)
     logTextViewContent = [NSString stringWithFormat:@"%@\n\n%@", logTextViewContent, _logContent];
   
   [crashLogTextView setString:logTextViewContent];
-  
-  NSBeep();
-  [NSApp runModalForWindow:[self window]];
 }
 
 
 - (void)dealloc {
-  [_crashFile release]; _crashFile = nil;
-  [_crashLogContent release]; _crashLogContent = nil;
-  [_logContent release]; _logContent = nil;
-  [_applicationName release]; _applicationName = nil;
-  [_companyName release]; _companyName = nil;
-  self.userName = nil;
-  self.userEmail = nil;
-  
-  [super dealloc];
+   _crashLogContent = nil;
+   _logContent = nil;
+   _applicationName = nil;
 }
 
 
 - (BOOL)showUserDetails {
-  return showUserDetails;
+  return _showUserDetails;
 }
 
-
 - (void)setShowUserDetails:(BOOL)value {
-  showUserDetails = value;
+  _showUserDetails = value;
 }
 
 
 - (BOOL)showComments {
-  return showComments;
+  return _showComments;
 }
 
-
 - (void)setShowComments:(BOOL)value {
-  showComments = value;
+  _showComments = value;
 }
 
 
 - (BOOL)showDetails {
-  return showDetails;
+  return _showDetails;
 }
-
 
 - (void)setShowDetails:(BOOL)value {
-  showDetails = value;
+  _showDetails = value;
 }
+
 
 #pragma mark NSTextField Delegate
 

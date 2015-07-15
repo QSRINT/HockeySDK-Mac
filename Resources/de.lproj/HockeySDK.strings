@@ -11,7 +11,7 @@
 "WindowTitle" = "Problembericht für %@";
 
 /* Introduction text, with app name placeholder first and company placeholder second */
-"IntroductionText" = "%@ wurde beim letzten Programmlauf unerwartet beendet. Möchten Sie einen Problembericht an %@ senden?";
+"IntroductionText" = "%@ wurde unerwartet beendet. Möchten Sie einen Bericht senden, sodass wir das Problem beheben können?";
 
 /* Name Text Title */
 "NameTextTitle" = "Name";
@@ -42,4 +42,40 @@
 
 /* Send Button */
 "SendButtonTitle" = "Senden";
+
+
+/* Feedback UI */
+
+/* Compose view placeholder text */
+"FeedbackComposePlaceHolder" = "Ihr Feedback";
+
+/* Last Update in Status Bar */
+"FeedbackLastUpdate" = "Letzte Aktualisierung:";
+
+/* Never in Status Bar */
+"FeedbackLastUpdateNever" = "Nie";
+
+/* From text between timestamp and author */
+"FeedbackFrom" = "von";
+
+/* Send button title */
+"FeedbackSendButton" = "Senden";
+
+/* Contact info text */
+"FeedbackContactInfo" = "Bitte geben Sie Ihre Kontaktdaten an";
+
+/* Name placeholder text */
+"FeedbackName" = "Name";
+
+/* Email placeholder text */
+"FeedbackEmail" = "Email";
+
+/* Continue button title */
+"FeedbackContinueButton" = "Weiter";
+
+/* Attachment context menu action Preview */
+"FeedbackAttachmentMenuPreview" = "Vorschau";
+
+/* Attachment context menu action Remove */
+"FeedbackAttachmentMenuRemove" = "Entfernen";
 
