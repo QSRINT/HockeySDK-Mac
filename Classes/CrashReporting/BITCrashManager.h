@@ -318,5 +318,7 @@ typedef NS_ENUM(NSUInteger, BITCrashManagerUserInput) {
  */
 - (void)generateTestCrash;
 
+//! Return the window of the crash reporter UI
+- (NSWindow*)crashReportWindow;
 
 @end
