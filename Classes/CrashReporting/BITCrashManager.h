@@ -78,7 +78,7 @@ typedef void (*BITCrashManagerPostCrashSignalCallback)(void *context);
 typedef struct BITCrashManagerCallbacks {
   /** An arbitrary user-supplied context value. This value may be NULL. */
   void *context;
-  
+
   /**
    * The callback used to report caught signal information.
    */
@@ -101,7 +101,6 @@ typedef NS_ENUM(NSUInteger, BITCrashManagerUserInput) {
    *  User chose to always send crash reports
    */
   BITCrashManagerUserInputAlwaysSend = 2
-  
 };
 
 
@@ -191,6 +190,12 @@ typedef NS_ENUM(NSUInteger, BITCrashManagerUserInput) {
 @property (nonatomic, assign, getter=isAutoSubmitCrashReport) BOOL autoSubmitCrashReport;
 
 /**
+ * readonly property allowing the client to access the crash report
+ * form window instance
+ */
+@property (readonly, nonatomic) NSWindow* crashReportUIWindow;
+
+/**
  * Set the callbacks that will be executed prior to program termination after a crash has occurred
  *
  * PLCrashReporter provides support for executing an application specified function in the context
@@ -217,7 +222,6 @@ typedef NS_ENUM(NSUInteger, BITCrashManagerUserInput) {
  */
 - (void)setCrashCallbacks: (BITCrashManagerCallbacks *) callbacks;
 
-
 ///-----------------------------------------------------------------------------
 /// @name Crash Meta Information
 ///-----------------------------------------------------------------------------
@@ -236,12 +240,12 @@ typedef NS_ENUM(NSUInteger, BITCrashManagerUserInput) {
 
 /**
  Provides an interface to pass user input from a custom alert to a crash report
- 
+
  @param userInput Defines the users action wether to send, always send, or not to send the crash report.
  @param userProvidedMetaData The content of this optional BITCrashMetaData instance will be attached to the crash report and allows to ask the user for e.g. additional comments or info.
- 
+
  @return Returns YES if the input is a valid option and successfully triggered further processing of the crash report
- 
+
  @see BITCrashManagerUserInput
  @see BITCrashMetaData
  */
@@ -250,19 +254,19 @@ typedef NS_ENUM(NSUInteger, BITCrashManagerUserInput) {
 /**
  Lets you set a custom block which handles showing a custom UI and asking the user
  whether he wants to send the crash report.
- 
+
  This replaces the default alert the SDK would show!
- 
+
  You can use this to present any kind of user interface which asks the user for additional information,
  e.g. what they did in the app before the app crashed.
- 
+
  In addition to this you should always ask your users if they agree to send crash reports, send them
  always or not and return the result when calling `handleUserInput:withUserProvidedCrashDescription`.
- 
+
  @param crashReportUIHandler A block that is responsible for loading, presenting and and dismissing your custom user interface which prompts the user if he wants to send crash reports. The block is also responsible for triggering further processing of the crash reports.
- 
+
  @warning Block needs to call the `[BITCrashManager handleUserInput:withUserProvidedMetaData:]` method!
- 
+
  @warning This needs to be set before calling `[BITHockeyManager startManager]`!
  */
 - (void)setCrashReportUIHandler:(BITCustomCrashReportUIHandler)crashReportUIHandler;
