@@ -905,6 +905,7 @@ static void uncaught_cxx_exception_handler(const BITCrashUncaughtCXXExceptionInf
   }
 }
 
+#define SEPARATORS "------------------------------------------------------------"
 
 /**
  *	 Send all approved crash reports
@@ -999,9 +1000,9 @@ static void uncaught_cxx_exception_handler(const BITCrashUncaughtCXXExceptionInf
     
     if ([applicationLog length] > 0) {
       if ([description length] > 0) {
-        description = [NSString stringWithFormat:@"%@\n\nLog:\n%@", description, applicationLog];
+        description = [NSString stringWithFormat:@"%@\n%s\nLog:\n%@", description, SEPARATORS, applicationLog];
       } else {
-        description = [NSString stringWithFormat:@"Log:\n%@", applicationLog];
+        description = [NSString stringWithFormat:@"%snLog:\n%@", SEPARATORS, applicationLog];
       }
     }
     
