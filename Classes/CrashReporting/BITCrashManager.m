@@ -516,6 +516,11 @@ static void uncaught_cxx_exception_handler(const BITCrashUncaughtCXXExceptionInf
   __builtin_trap();
 }
 
+- (NSWindow*)crashReportWindow
+{
+	return [_crashReportUI window];
+}
+
 /**
  *  Write a meta file for a new crash report
  *
