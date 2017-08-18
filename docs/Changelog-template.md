@@ -1,3 +1,132 @@
+## 4.1.3
+
+- [IMPROVEMENT] Downgrading to PLCrashReporter 1.2.1 as the upgrade to 1.3 in the last release lead to lowered qualitfy of crash reports for an edge case.
+- [IMPROVEMENT] Additional target to create libHockeySDK.a thanks to Gabriel/MacGritsch.
+- [BUGFIX] Fix a UI glitch where the loading indicator would spin indefinitely when displaying feedback
+- [BUGFIX] Fix a glitch where the crashes UI wasn't always visible when starting the app. Thanks a lot to Tamas Nagy for this.
+
+## 4.1.2
+
+- [IMPROVEMENT] Update to latest PLCrashReporter build (PLCrashReporter 1.3).
+- [BUGFIX] Add check for `nil` in BITChannel.
+
+## 4.1.1
+
+- [IMPROVEMENT] Add process id to BITCrashDetails.
+- [IMPROVEMENT] Add app launch timestamp to crash report.
+- [BUGFIX] Fix leak in BITChannel.
+- [BUGFIX] Add safequards to MetricsManager to fix potential crash in BITChannel.
+
+## 4.1.0
+
+- [NEW] Add ability to track custom events
+- [NEW] Additional API to track an event with properties and measurements.
+
+## 4.1.0-beta.4
+
+Add a bugfix from version 4.0.3:
+
+- [BUGFIX] Use a directory path for metrics data that's in compliance with Apple's file system guidelines
+
+## 4.1.0-beta.3
+
+- [IMPROVEMENT] Make lastSessionCrashDetails available in delegate methods
+
+Add a bugfix from version 4.0.2:
+
+- [BUGFIX] Restore compatibility with OS X 10.7 by not accessing `NSURLIsExcludedFromBackupKey` if not available
+
+## 4.1.0-beta.2
+
+- [BUGFIX] Fixes an issue where the whole app's Application Support directory (sandboxed apps) / user’s Application Support directory (non-sandboxed apps) was accidentally excluded from backups.
+This SDK release explicitly includes the Application Support directory into backups. If you want to opt-out of this fix and keep the Application Directory's backup flag untouched, add the following line above the SDK setup code:
+
+- Objective-C:
+```objectivec
+[[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"BITExcludeApplicationSupportFromBackup"];
+```
+
+- Swift:
+```swift
+NSUserDefaults.standardUserDefaults().setBool(true, forKey: "BITExcludeApplicationSupportFromBackup")
+```
+
+- [NEW] Add more fine-grained log levels
+- [NEW] Add ability to connect existing logging framework
+- [BUGFIX] Make CrashManager property `serverURL` individual setable
+
+## Version 4.1.0-beta.1
+
+- [IMPROVEMENT] Prevent User Metrics from being sent if `BITMetricsManager` has been disabled.
+
+## Version 4.1.0-alpha.1
+
+- [NEW] Add ability to track custom events
+- [BUGFIX] Server URL is now properly customizable
+- [BUGFIX] Fix memory leak in networking code
+- [BUGFIX] Fix different bugs in the events sending pipeline
+- [IMPROVEMENT] Events are always persisted, even if the app crashes
+- [IMPROVEMENT] Allow disabling `BITMetricsManager` at any time
+- [IMPROVEMENT] Reuse `NSURLSession` object
+- [IMPROVEMENT] Under the hood improvements and cleanup
+
+## Version 4.0.3
+
+- [BUGFIX] Use a directory path for metrics data that's in compliance with Apple's file system guidelines
+
+## Version 4.0.2
+
+- [BUGFIX] Restore compatibility with OS X 10.7 by not accessing `NSURLIsExcludedFromBackupKey` if not available
+
+## Version 4.0.1
+
+- [BUGFIX] Fixes an issue where the whole app's Application Support directory (sandboxed apps) / user’s Application Support directory (non-sandboxed apps) was accidentally excluded from backups.
+This SDK release explicitly includes the Application Support directory into backups. If you want to opt-out of this fix and keep the Application Directory's backup flag untouched, add the following line above the SDK setup code:
+
+  	**Objective-C:**
+   ```objectivec
+   [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"kBITExcludeApplicationSupportFromBackup"];
+   ```
+    
+	**Swift:**
+   ```swift
+   NSUserDefaults.standardUserDefaults().setBool(true, forKey: "kBITExcludeApplicationSupportFromBackup")
+    ```
+
+## Version 4.0.0
+
+- [IMPROVEMENT] Prefix GZIP category on NSData to prevent symbol collisions
+- 
+## Version 4.0.0-beta.1
+
+- [NEW] User Metrics including users and sessions data is now in public beta
+
+## Version 4.0.0-alpha.2
+
+- [UPDATE] Add improvements and fixes from 3.2.1
+
+## Version 4.0.0-alpha.1
+
+- [NEW] Add User Metrics support
+
+## Version 3.2.1
+- [UPDATE] Some minor refactorings
+- [BUGFIX] Fix NSURLSession memory leak in Swift apps
+- [BUGFIX] Fix issue preventing attachment from being included when sending non-clean termination report
+- [IMPROVEMENT] Anonymize binary path in crash report
+- [IMPROVEMENT] Support escaping of additional characters (URL encoding)
+- [IMPROVEMENT] Support Bundle Identifiers which contain whitespaces
+
+## Version 3.2.0
+
+- [NEW] Added module definition
+- [UPDATE] Added full support for `NSURLSession`
+- [UPDATE] Switched to use `@rpath` instead of `@loader_path` (You might need to adjust your `LD_RUNPATH_SEARCH_PATHS` setting to include `@executable_path/../Frameworks`!)
+- [UPDATE] Updated PLCrashReporter build
+- [BUGFIX] Added missing public header files
+- [BUGFIX] Doesn't install the C++ exception when running on 10.7.x
+- [BUGFIX] Various other improvements and fixes
+
 ## Version 3.1.0
 
 - [NEW] `BITCrashManager`: Added support for unhandled C++ exceptions

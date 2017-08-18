@@ -1,32 +1,3 @@
-/*
- * Author: Andreas Linde <mail@andreaslinde.de>
- *
- * Copyright (c) 2012-2014 HockeyApp, Bit Stadium GmbH.
- * All rights reserved.
- *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- */
-
-
 #import "HockeySDK.h"
 #import "HockeySDKPrivate.h"
 
@@ -37,7 +8,6 @@
 
 #import "BITHockeyAppClient.h"
 #import "BITHockeyHelper.h"
-
 
 #define kBITFeedbackUserDataAsked   @"HockeyFeedbackUserDataAsked"
 #define kBITFeedbackDateOfLastCheck	@"HockeyFeedbackDateOfLastCheck"
@@ -457,6 +427,7 @@
   [_feedbackList enumerateObjectsUsingBlock:^(BITFeedbackMessage *objMessage, NSUInteger messagesIdx, BOOL *stop) {
     if ([[objMessage messageID] integerValue] != 0) {
       message = objMessage;
+    } else {
       *stop = YES;
     }
   }];
@@ -735,7 +706,7 @@
   
   // build request & send
   NSString *url = [NSString stringWithFormat:@"%@%@", self.serverURL, parameter];
-  BITHockeyLog(@"INFO: sending api request to %@", url);
+  BITHockeyLogDebug(@"INFO: sending api request to %@", url);
   
   NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url] cachePolicy:1 timeoutInterval:10.0];
   [request setHTTPMethod:httpMethod];
@@ -791,79 +762,102 @@
     
     [request setHTTPBody:postBody];
   }
+  __weak typeof (self) weakSelf = self;
+  id nsurlsessionClass = NSClassFromString(@"NSURLSessionDataTask");
+  if (nsurlsessionClass) {
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    __block NSURLSession *session = [NSURLSession sessionWithConfiguration:sessionConfiguration];
+    
+    NSURLSessionDataTask *task = [session dataTaskWithRequest:request
+                                            completionHandler: ^(NSData *data, NSURLResponse *response, NSError *error) {
+                                              typeof (self) strongSelf = weakSelf;
+                                              
+                                              [session finishTasksAndInvalidate];
+
+                                              [strongSelf handleFeedbackMessageResponse:response data:data error:error completion:completionHandler];
+                                            }];
+    [task resume];
+    
+  }else{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *responseData, NSError *err) {
+#pragma clang diagnostic pop
+      typeof (self) strongSelf = weakSelf;
+      [strongSelf handleFeedbackMessageResponse:response data:responseData error:err completion:completionHandler];
+    }];
+  }
+}
+
+- (void)handleFeedbackMessageResponse:(NSURLResponse *)response data:(NSData *)responseData error:(NSError * )err completion:(void (^)(NSError *err))completionHandler{
+  _networkRequestInProgress = NO;
   
-  [NSURLConnection sendAsynchronousRequest:request
-                                     queue:[NSOperationQueue mainQueue]
-                         completionHandler:^(NSURLResponse *response, NSData *responseData, NSError *err) {
-    _networkRequestInProgress = NO;
-    
-    self.lastRefreshDate = [NSDate date];
-    
-    if (err) {
-      [self reportError:err];
-      [self markSendInProgressMessagesAsPending];
-      completionHandler(err);
-    } else {
-      NSInteger statusCode = [(NSHTTPURLResponse *)response statusCode];
-      if (statusCode == 404) {
-        // thread has been deleted, we archive it
-        [self updateMessageListFromResponse:nil];
-      } else if (statusCode == 409) {
-        // we submitted a message that is already on the server, mark it as being in conflict and resolve it with another fetch
+  self.lastRefreshDate = [NSDate date];
+  
+  if (err) {
+    [self reportError:err];
+    [self markSendInProgressMessagesAsPending];
+    completionHandler(err);
+  } else {
+    NSInteger statusCode = [(NSHTTPURLResponse *)response statusCode];
+    if (statusCode == 404) {
+      // thread has been deleted, we archive it
+      [self updateMessageListFromResponse:nil];
+    } else if (statusCode == 409) {
+      // we submitted a message that is already on the server, mark it as being in conflict and resolve it with another fetch
+      
+      if (!self.token) {
+        // set the token to the first message token, since this is identical
+        __block NSString *token = nil;
         
-        if (!self.token) {
-          // set the token to the first message token, since this is identical
-          __block NSString *token = nil;
-
-          [self.feedbackList enumerateObjectsUsingBlock:^(id objMessage, NSUInteger messagesIdx, BOOL *stop) {
-            if ([(BITFeedbackMessage *)objMessage status] == BITFeedbackMessageStatusSendInProgress) {
-              token = [(BITFeedbackMessage *)objMessage token];
-              *stop = YES;
-            }
-          }];
-
-          if (token) {
-            self.token = token;
+        [_feedbackList enumerateObjectsUsingBlock:^(id objMessage, NSUInteger messagesIdx, BOOL *stop) {
+          if ([(BITFeedbackMessage *)objMessage status] == BITFeedbackMessageStatusSendInProgress) {
+            token = [(BITFeedbackMessage *)objMessage token];
+            *stop = YES;
           }
-        }
+        }];
         
-        [self markSendInProgressMessagesAsInConflict];
-        [self saveMessages];
-        [self performSelector:@selector(fetchMessageUpdates) withObject:nil afterDelay:0.2];
-      } else if ([responseData length]) {
-        NSString *responseString = [[NSString alloc] initWithBytes:[responseData bytes] length:[responseData length] encoding: NSUTF8StringEncoding];
-        BITHockeyLog(@"INFO: Received API response: %@", responseString);
-        
-        if (responseString && [responseString dataUsingEncoding:NSUTF8StringEncoding]) {
-          NSError *error = NULL;
-          
-          NSDictionary *feedDict = (NSDictionary *)[NSJSONSerialization JSONObjectWithData:[responseString dataUsingEncoding:NSUTF8StringEncoding] options:kNilOptions error:&error];
-          
-          // server returned empty response?
-          if (error) {
-            [self reportError:error];
-          } else if (![feedDict count]) {
-            [self reportError:[NSError errorWithDomain:kBITFeedbackErrorDomain
-                                                  code:BITFeedbackAPIServerReturnedEmptyResponse
-                                              userInfo:@{NSLocalizedDescriptionKey: @"Server returned empty response."}]];
-          } else {
-            BITHockeyLog(@"INFO: Received API response: %@", responseString);
-            NSString *status = feedDict[@"status"];
-            if ([status compare:@"success"] != NSOrderedSame) {
-              [self reportError:[NSError errorWithDomain:kBITFeedbackErrorDomain
-                                                    code:BITFeedbackAPIServerReturnedInvalidStatus
-                                                userInfo:@{NSLocalizedDescriptionKey: @"Server returned invalid status."}]];
-            } else {
-              [self updateMessageListFromResponse:feedDict];
-            }
-          }
+        if (token) {
+          self.token = token;
         }
       }
       
-      [self markSendInProgressMessagesAsPending];
-      completionHandler(err);
+      [self markSendInProgressMessagesAsInConflict];
+      [self saveMessages];
+      [self performSelector:@selector(fetchMessageUpdates) withObject:nil afterDelay:0.2];
+    } else if ([responseData length]) {
+      NSString *responseString = [[NSString alloc] initWithBytes:[responseData bytes] length:[responseData length] encoding: NSUTF8StringEncoding];
+      BITHockeyLogDebug(@"INFO: Received API response: %@", responseString);
+      
+      if (responseString && [responseString dataUsingEncoding:NSUTF8StringEncoding]) {
+        NSError *error = NULL;
+        
+        NSDictionary *feedDict = (NSDictionary *)[NSJSONSerialization JSONObjectWithData:[responseString dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+        
+        // server returned empty response?
+        if (error) {
+          [self reportError:error];
+        } else if (![feedDict count]) {
+          [self reportError:[NSError errorWithDomain:kBITFeedbackErrorDomain
+                                                code:BITFeedbackAPIServerReturnedEmptyResponse
+                                            userInfo:@{NSLocalizedDescriptionKey: @"Server returned empty response."}]];
+        } else {
+          BITHockeyLogDebug(@"INFO: Received API response: %@", responseString);
+          NSString *status = [feedDict objectForKey:@"status"];
+          if ([status compare:@"success"] != NSOrderedSame) {
+            [self reportError:[NSError errorWithDomain:kBITFeedbackErrorDomain
+                                                  code:BITFeedbackAPIServerReturnedInvalidStatus
+                                              userInfo:@{NSLocalizedDescriptionKey: @"Server returned invalid status."}]];
+          } else {
+            [self updateMessageListFromResponse:feedDict];
+          }
+        }
+      }
     }
-  }];
+    
+    [self markSendInProgressMessagesAsPending];
+    completionHandler(err);
+  }
 }
 
 - (void)fetchMessageUpdates {

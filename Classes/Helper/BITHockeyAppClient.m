@@ -1,31 +1,6 @@
-/*
- * Author: Stephan Diederich
- *
- * Copyright (c) 2013-2014 HockeyApp, Bit Stadium GmbH.
- * All rights reserved.
- *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- */
 #import "BITHockeyAppClient.h"
+
+NSString * const kBITHockeyAppClientBoundary = @"----FOO";
 
 @implementation BITHockeyAppClient
 - (void)dealloc {
@@ -36,7 +11,7 @@
   self = [super init];
   if ( self ) {
     NSParameterAssert(baseURL);
-    _baseURL = [baseURL copy];
+    _baseURL = baseURL;
   }
   return self;
 }
@@ -66,16 +41,15 @@
     } else {
       //TODO: this is crap. Boundary must be the same as the one in appendData
       //unify this!
-      NSString *boundary = @"----FOO";
-      NSString *contentType = [NSString stringWithFormat:@"multipart/form-data; boundary=%@", boundary];
+      NSString *contentType = [NSString stringWithFormat:@"multipart/form-data; boundary=%@", kBITHockeyAppClientBoundary];
       [request setValue:contentType forHTTPHeaderField:@"Content-type"];
       
       NSMutableData *postBody = [NSMutableData data];
       [params enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *value, BOOL *stop) {
-        [postBody appendData:[[self class] dataWithPostValue:value forKey:key boundary:boundary]];
+        [postBody appendData:[[self class] dataWithPostValue:value forKey:key boundary:kBITHockeyAppClientBoundary]];
       }];
       
-      [postBody appendData:[[NSString stringWithFormat:@"--%@--\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+      [postBody appendData:[[NSString stringWithFormat:@"--%@--\r\n", kBITHockeyAppClientBoundary] dataUsingEncoding:NSUTF8StringEncoding]];
       
       [request setHTTPBody:postBody];
     }

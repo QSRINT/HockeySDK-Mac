@@ -1,33 +1,11 @@
-// 
-//  Author: Andreas Linde <mail@andreaslinde.de>
-// 
-//  Copyright (c) 2012-2014 HockeyApp, Bit Stadium GmbH. All rights reserved.
-//  See LICENSE.txt for author information.
-//
-//  Permission is hereby granted, free of charge, to any person obtaining a copy
-//  of this software and associated documentation files (the "Software"), to deal
-//  in the Software without restriction, including without limitation the rights
-//  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-//  copies of the Software, and to permit persons to whom the Software is
-//  furnished to do so, subject to the following conditions:
-//
-//  The above copyright notice and this permission notice shall be included in
-//  all copies or substantial portions of the Software.
-//
-//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-//  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-//  THE SOFTWARE.
-
 #import "HockeySDK.h"
 #import "HockeySDKPrivate.h"
 
 #import "BITHockeyBaseManagerPrivate.h"
 #import "BITCrashManagerPrivate.h"
 #import "BITFeedbackManagerPrivate.h"
+#import "BITMetricsManagerPrivate.h"
+#import "BITCategoryContainer.h"
 #import "BITHockeyHelper.h"
 #import "BITHockeyAppClient.h"
 
@@ -40,9 +18,6 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
   
   BOOL _startManagerIsInvoked;
   
-  NSInteger         _statusCode;
-  NSURLConnection   *_urlConnection;
-
   BITHockeyAppClient *_hockeyAppClient;
 }
 
@@ -68,6 +43,7 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
     
     _disableCrashManager = NO;
     _disableFeedbackManager = NO;
+    _disableMetricsManager = NO;
     
     _startManagerIsInvoked = NO;
     
@@ -141,7 +117,7 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
   
   NSString *integrationPath = [NSString stringWithFormat:@"api/3/apps/%@/integration", [_appIdentifier stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding]];
   
-  BITHockeyLog(@"INFO: Sending integration workflow ping to %@", integrationPath);
+  BITHockeyLogDebug(@"INFO: Sending integration workflow ping to %@", integrationPath);
   
   [[self hockeyAppClient] postPath:integrationPath
                         parameters:@{@"timestamp": timeString,
@@ -152,16 +128,16 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
                         completion:^(BITHTTPOperation *operation, NSData* responseData, NSError *error) {
                           switch (operation.response.statusCode) {
                             case 400:
-                              BITHockeyLog(@"ERROR: App ID not found");
+                              BITHockeyLogError(@"ERROR: App ID not found");
                               break;
                             case 201:
-                              BITHockeyLog(@"INFO: Ping accepted.");
+                              BITHockeyLogDebug(@"INFO: Ping accepted.");
                               break;
                             case 200:
-                              BITHockeyLog(@"INFO: Ping accepted. Server already knows.");
+                              BITHockeyLogDebug(@"INFO: Ping accepted. Server already knows.");
                               break;
                             default:
-                              BITHockeyLog(@"ERROR: Unknown error");
+                              BITHockeyLogError(@"ERROR: Unknown error");
                               break;
                           }
                         }];
@@ -198,27 +174,36 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
     return;
   }
   
-  BITHockeyLog(@"INFO: Starting HockeyManager");
+  // Fix bug where Application Support directory was encluded from backup
+  NSFileManager *fileManager = [NSFileManager defaultManager];
+  NSURL *appSupportURL = [[fileManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask] lastObject];
+  bit_fixBackupAttributeForURL(appSupportURL);
+  
+  BITHockeyLogDebug(@"INFO: Starting HockeyManager");
   _startManagerIsInvoked = YES;
   
   // start CrashManager
   if (![self isCrashManagerDisabled]) {
-    BITHockeyLog(@"INFO: Start CrashManager");
-    if (_serverURL) {
-      [_crashManager setServerURL:_serverURL];
-    }
+    BITHockeyLogDebug(@"INFO: Start CrashManager");
     [_crashManager startManager];
   }
   
   // start FeedbackManager
   if (![self isFeedbackManagerDisabled]) {
-    BITHockeyLog(@"INFO: Start FeedbackManager");
+    BITHockeyLogDebug(@"INFO: Start FeedbackManager");
     if (_serverURL) {
       [_feedbackManager setServerURL:_serverURL];
     }
     [_feedbackManager performSelector:@selector(startManager) withObject:nil afterDelay:1.0f];
   }
-
+  
+  // start MetricsManager
+  if (!self.disableMetricsManager) {
+    BITHockeyLogDebug(@"INFO: Start MetricsManager");
+    [_metricsManager startManager];
+    [BITCategoryContainer activateCategory];
+  }
+  
   NSString *integrationFlowTime = [self integrationFlowTimeString];
   if (integrationFlowTime && [self integrationFlowStartedWithTimeString:integrationFlowTime]) {
     [self pingServerForIntegrationStartWorkflowWithTimeString:integrationFlowTime];
@@ -246,7 +231,7 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
   
   if (_serverURL != aServerURL) {
     _serverURL = [aServerURL copy];
-
+    
     if (_hockeyAppClient) {
       _hockeyAppClient.baseURL = [NSURL URLWithString:_serverURL ?: kBITHockeySDKURL];
     }
@@ -261,6 +246,27 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
       _crashManager.delegate = delegate;
     }
   }
+}
+
+- (void)setDebugLogEnabled:(BOOL)debugLogEnabled {
+  _debugLogEnabled = debugLogEnabled;
+  if (debugLogEnabled) {
+    self.logLevel = BITLogLevelDebug;
+  } else {
+    self.logLevel = BITLogLevelWarning;
+  }
+}
+
+- (BITLogLevel)logLevel {
+  return BITHockeyLogger.currentLogLevel;
+}
+
+- (void)setLogLevel:(BITLogLevel)logLevel {
+  BITHockeyLogger.currentLogLevel = logLevel;
+}
+
+- (void)setLogHandler:(BITLogHandler)logHandler {
+  [BITHockeyLogger setLogHandler:logHandler];
 }
 
 - (void)setUserID:(NSString *)userID {
@@ -315,10 +321,10 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
   
   _startManagerIsInvoked = NO;
   
-  BITHockeyLog(@"INFO: Setup CrashManager");
-  _crashManager = [[BITCrashManager alloc] initWithAppIdentifier:_appIdentifier];
+  BITHockeyLogDebug(@"INFO: Setup CrashManager");
+  _crashManager = [[BITCrashManager alloc] initWithAppIdentifier:_appIdentifier
+                                                 hockeyAppClient:[self hockeyAppClient]];
   _crashManager.delegate = self.delegate;
-  _crashManager.hockeyAppClient = [self hockeyAppClient];
   
   // if we don't initialize the BITCrashManager instance, then the delegate will not be invoked
   // leaving the app to never show the window if the developer provided an invalid app identifier
@@ -326,8 +332,12 @@ NSString *const kBITHockeySDKURL = @"https://sdk.hockeyapp.net/";
     [self logInvalidIdentifier:@"app identifier"];
     self.disableCrashManager = YES;
   } else {
-    BITHockeyLog(@"INFO: Setup FeedbackManager");
+    BITHockeyLogDebug(@"INFO: Setup FeedbackManager");
     _feedbackManager = [[BITFeedbackManager alloc] initWithAppIdentifier:_appIdentifier];
+    
+    BITHockeyLogDebug(@"INFO: Setup MetricsManager");
+    NSString *iKey = bit_appIdentifierToGuid(_appIdentifier);
+    _metricsManager = [[BITMetricsManager alloc] initWithAppIdentifier:iKey];
   }
   
   if ([self isCrashManagerDisabled])
